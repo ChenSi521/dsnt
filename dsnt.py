@@ -94,6 +94,8 @@ def _kl_2d(p, q, eps=24):
     # tf.log(p + eps) - tf.log(q + eps)因该是和交叉熵比较相似的东西，然后在其上又包了两层，计算kl散度、
     # js散度来作为loss。其本质是和《扔掉anchor！真正的CenterNet——Objects as Points论文解读 - 知乎》文
     # 中“中心点预测的损失函数”是类似的，也是在逐点使用一种“熵”函数。
+    # 补充：《熵、KL散度、交叉熵》中的原话--->抽象解释：我所理解的交叉熵的含义，与KL散度是类似的，都是用于
+    # 度量两个分布或者说两个随机变量、两个事件不同的程度。
     unsummed_kl = p * (tf.log(p + eps) - tf.log(q + eps))
     kl_values = tf.reduce_sum(unsummed_kl, [-1, -2])
     return kl_values
