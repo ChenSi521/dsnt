@@ -4,6 +4,7 @@ Regression with Convolutional Neural Networks"
 '''
 
 import tensorflow as tf
+# 过了半年多了，终于对这个dsnt的原理有了新的理解
 
 def dsnt(inputs, method='softmax'):
     '''
@@ -30,15 +31,18 @@ def dsnt(inputs, method='softmax'):
     dsnt_y = tf.cast(tf.transpose(dsnt_y, perm=[0, 2, 1]), tf.float32)
 
     # Compute the Frobenius inner product
+    # 其实这两行就是dsnt，就是论文的创新点；以后再进行面试，牢记Frobenius inner product就好了。
     outputs_x = tf.reduce_sum(tf.multiply(norm_heatmap, dsnt_x), axis=[1, 2])
     outputs_y = tf.reduce_sum(tf.multiply(norm_heatmap, dsnt_y), axis=[1, 2])
 
     # Zip into [x, y] pairs
     coords_zipped = tf.stack([outputs_x, outputs_y], axis=1)
 
-    return norm_heatmap, coords_zipped
+    return norm_heatmap, coords_zipped  # 这个coords_zipped就是论文所讲的直接通过期望得到的坐标
 
 def js_reg_loss(heatmaps, centres, fwhm=1):
+    # 这里代码中关于坐标的两个loss中的另一个，经过了很多训练的验证了，让这个loss的权重大于mse_loss大一些，
+    # 会获得更好的效果。即主要优化的应该是这个loss。
     '''
     Calculates and returns the average Jensen-Shannon divergence between heatmaps and target Gaussians.
     Arguments:
@@ -47,7 +51,7 @@ def js_reg_loss(heatmaps, centres, fwhm=1):
         fwhm - Full-width-half-maximum for the drawn Gaussians, which can be thought of as a radius.
     '''
     gauss = _make_gaussians(centres, tf.shape(heatmaps)[1], tf.shape(heatmaps)[2], fwhm)
-    divergences = _js_2d(heatmaps, gauss)
+    divergences = _js_2d(heatmaps, gauss)  # 这一行就是计算Loss的过程。
     return tf.reduce_mean(divergences)
 
 
@@ -82,6 +86,14 @@ def _normalise_heatmap(inputs, method='softmax'):
     return inputs
 
 def _kl_2d(p, q, eps=24):
+    # 这里是我最难理解的部分
+    # 结合刚读的这篇文章《扔掉anchor！真正的CenterNet——Objects as Points论文解读 - 知乎》（见印象笔记）
+    # 这篇文章中关于“中心点预测的损失函数”那一小节，讲的非常好。通过那一小节我才突然明白，这里其实也是对每个
+    # 点计算一个Loss，但是其使用的是交叉生损失函数。
+    # 再结合《熵、KL散度、交叉熵》（见印象笔记）这篇文章，发现这里的kl散度好像和交叉熵是比较类似的东西。
+    # tf.log(p + eps) - tf.log(q + eps)因该是和交叉熵比较相似的东西，然后在其上又包了两层，计算kl散度、
+    # js散度来作为loss。其本质是和《扔掉anchor！真正的CenterNet——Objects as Points论文解读 - 知乎》文
+    # 中“中心点预测的损失函数”是类似的，也是在逐点使用一种“熵”函数。
     unsummed_kl = p * (tf.log(p + eps) - tf.log(q + eps))
     kl_values = tf.reduce_sum(unsummed_kl, [-1, -2])
     return kl_values
